@@ -11,6 +11,7 @@
     <name>hkcache</name>
 
     <modules>
+        <module>hkcache-common</module>
         <module>hotkey-spring-boot-starter</module>
         <module>hkcache-remoting</module>
         <module>hkcache-server</module>
