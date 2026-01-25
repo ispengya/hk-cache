@@ -3,6 +3,7 @@ package com.ispengya.hotkey.cli.detect;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * HotKeySet 表示本地维护的热 key 集合，
@@ -15,13 +16,15 @@ import java.util.Set;
 public class HotKeySet {
 
     private volatile Set<String> hotKeys = Collections.emptySet();
+    private final AtomicLong version = new AtomicLong(0);
 
     /**
      * 使用新的热 key 集合整体替换当前视图。
      *
      * @param keys 新的热 key 集合
+     * @param newVersion 新的版本号
      */
-    public void update(Iterable<String> keys) {
+    public void update(Iterable<String> keys, long newVersion) {
         Set<String> newSet = new HashSet<>();
         if (keys != null) {
             for (String key : keys) {
@@ -31,6 +34,7 @@ public class HotKeySet {
             }
         }
         this.hotKeys = Collections.unmodifiableSet(newSet);
+        this.version.set(newVersion);
     }
 
     /**
@@ -42,5 +46,13 @@ public class HotKeySet {
     public boolean contains(String key) {
         return hotKeys.contains(key);
     }
-}
 
+    /**
+     * 获取当前热 key 集合的版本号。
+     *
+     * @return 版本号
+     */
+    public long getVersion() {
+        return version.get();
+    }
+}

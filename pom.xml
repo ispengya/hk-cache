@@ -59,6 +59,11 @@
                 <artifactId>hkcache-common</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <dependency>
+                <groupId>com.ispengya</groupId>
+                <artifactId>hkcache-remoting</artifactId>
+                <version>${project.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 

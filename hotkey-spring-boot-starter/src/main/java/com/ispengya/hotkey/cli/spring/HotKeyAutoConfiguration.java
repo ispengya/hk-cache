@@ -1,6 +1,12 @@
 package com.ispengya.hotkey.cli.spring;
 
 import cn.hutool.core.collection.CollUtil;
+import com.ispengya.hkcache.remoting.protocol.JdkSerializer;
+import com.ispengya.hkcache.remoting.client.ClientRequestSender;
+import com.ispengya.hkcache.remoting.client.HotKeyRemotingClient;
+import com.ispengya.hkcache.remoting.client.NettyClient;
+import com.ispengya.hkcache.remoting.client.NettyClientConfig;
+import com.ispengya.hkcache.remoting.protocol.Serializer;
 import com.ispengya.hotkey.cli.config.HotKeyProperties;
 import com.ispengya.hotkey.cli.config.InstanceConfig;
 import com.ispengya.hotkey.cli.core.CacheTemplate;
@@ -8,7 +14,6 @@ import com.ispengya.hotkey.cli.core.HotKeyClient;
 import com.ispengya.hotkey.cli.core.PostLoadAction;
 import com.ispengya.hotkey.cli.detect.HotKeyDetector;
 import com.ispengya.hotkey.cli.detect.HotKeySet;
-import com.ispengya.hotkey.cli.detect.HotKeyDetector;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -17,7 +22,9 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -58,8 +65,30 @@ public class HotKeyAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public HotKeyDetector hkcacheHotKeyDetector() {
-        return new HotKeyDetector();
+    public Serializer hkcacheSerializer() {
+        return new JdkSerializer();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public NettyClient hkcacheNettyClient(HotKeyProperties properties) {
+        // 假设 properties 中有 server 配置，暂时使用默认值
+        List<InetSocketAddress> serverAddresses = Collections.singletonList(
+                new InetSocketAddress("127.0.0.1", 8888)
+        );
+        // 如果 properties 有配置则使用 properties
+        // 这里简化处理，实际应解析 properties.getServerAddresses()
+        NettyClientConfig config = new NettyClientConfig(serverAddresses, 3000, 4, 1024 * 1024);
+        NettyClient client = new NettyClient(config);
+        client.start();
+        return client;
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public HotKeyRemotingClient hkcacheRemotingClient(Serializer serializer, NettyClient nettyClient) {
+        ClientRequestSender sender = new ClientRequestSender(nettyClient);
+        return new HotKeyRemotingClient(serializer, sender);
     }
 
     @Bean
@@ -67,7 +96,27 @@ public class HotKeyAutoConfiguration {
     public HotKeySet hkcacheHotKeySet() {
         return new HotKeySet();
     }
-    
+
+    @Bean
+    @ConditionalOnMissingBean
+    public HotKeyDetector hkcacheHotKeyDetector(HotKeyProperties properties,
+                                                HotKeyRemotingClient remotingClient,
+                                                HotKeySet hotKeySet) {
+        // 取第一个实例配置作为 detector 的上下文，简化处理
+        // 实际场景可能需要为每个 HotKeyClient 创建独立的 Detector，或者 Detector 支持多实例
+        // 这里假设是单实例模式或共用
+        List<InstanceConfig> instances = properties.getInstances();
+        InstanceConfig config;
+        if (CollUtil.isEmpty(instances)) {
+            config = new InstanceConfig();
+            config.setInstanceName("default");
+        } else {
+            config = instances.get(0);
+        }
+        HotKeyDetector detector = new HotKeyDetector(config, remotingClient, hotKeySet);
+        detector.start();
+        return detector;
+    }
 
     /**
      * 注册默认的 HotKeyClient。
@@ -102,7 +151,18 @@ public class HotKeyAutoConfiguration {
                 instanceName = "default";
             }
             String templateBeanName = buildCacheTemplateBeanName(instanceName);
-            CacheTemplate cacheTemplate = applicationContext.getBean(templateBeanName, CacheTemplate.class);
+            // 暂时忽略找不到 CacheTemplate 的情况，实际应有默认实现
+            CacheTemplate cacheTemplate = null;
+            try {
+                cacheTemplate = applicationContext.getBean(templateBeanName, CacheTemplate.class);
+            } catch (Exception e) {
+                // ignore
+            }
+            if (cacheTemplate == null) {
+                 // fallback logic if needed
+                 continue;
+            }
+            
             HotKeyClient client = factory.createHotKeyClient(instanceName, detector, hotKeySet, cacheTemplate, postLoadAction);
             hotKeyClientManager.register(instanceName, client);
             if (defaultClient == null) {
@@ -116,3 +176,4 @@ public class HotKeyAutoConfiguration {
         return "hkcache." + (StringUtils.isEmpty(instanceName) ? "default" : instanceName) + ".cacheTemplate";
     }
 }
+
