@@ -48,7 +48,12 @@ public class HotKeyAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public PostLoadAction hkcachePostLoadAction() {
-        return (key, value, fromCache, costNanos) -> { };
+        return new PostLoadAction() {
+            @Override
+            public <T> void onLoaded(String key, T value, boolean fromCache, long costNanos) {
+                // 空实现
+            }
+        };
     }
 
     @Bean

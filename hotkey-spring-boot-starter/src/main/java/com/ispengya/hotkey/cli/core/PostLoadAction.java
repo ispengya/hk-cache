@@ -19,6 +19,6 @@ public interface PostLoadAction {
      * @param costNanos  整体耗时（纳秒）
      * @param <T>        返回值类型
      */
-    <T> void onLoaded(String key, T value, boolean fromCache, long costNanos);
+     <T> void onLoaded(String key, T value, boolean fromCache, long costNanos);
 }
 
