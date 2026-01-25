@@ -13,5 +13,30 @@
     <packaging>jar</packaging>
     <name>hkcache-server</name>
 
-</project>
+    <dependencies>
+        <dependency>
+            <groupId>com.ispengya</groupId>
+            <artifactId>hkcache-remoting</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        
+        <!-- Utils -->
+        <dependency>
+            <groupId>cn.hutool</groupId>
+            <artifactId>hutool-all</artifactId>
+            <version>5.8.25</version>
+        </dependency>
 
+        <!-- Logging -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>1.7.36</version>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>1.2.12</version>
+        </dependency>
+    </dependencies>
+</project>
