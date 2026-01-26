@@ -2,7 +2,6 @@ package com.ispengya.hkcache.remoting.client;
 
 import com.ispengya.hkcache.remoting.protocol.Command;
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -33,18 +32,9 @@ public final class ClientRequestSender {
      * @param command 待发送的命令
      */
     public void sendOneWay(Command command) {
-        Channel channel = null;
         try {
-            channel = nettyClient.connectOnce();
-            channel.writeAndFlush(command).addListener(f -> {
-                if (!f.isSuccess()) {
-                    // 这里可以按需记录日志或埋点
-                }
-                // 写入完成后关闭连接，实现短连接语义
-                if (f instanceof ChannelFuture) {
-                    ((ChannelFuture) f).channel().close();
-                }
-            });
+            Channel channel = nettyClient.getOrCreateChannel();
+            channel.writeAndFlush(command);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -59,17 +49,12 @@ public final class ClientRequestSender {
      */
     public CompletableFuture<Command> sendSync(Command command, long timeoutMillis) {
         CompletableFuture<Command> future = new CompletableFuture<>();
-        Channel channel = null;
         try {
-            channel = nettyClient.connectOnce();
-            // 将 future 挂到 Channel 上，供 ClientInboundHandler 回传结果
+            Channel channel = nettyClient.getOrCreateChannel();
             channel.attr(ClientInboundHandler.FUTURE_KEY).set(future);
 
             channel.writeAndFlush(command);
 
-            // 收到响应或异常后关闭连接
-            Channel finalChannel = channel;
-            future.whenComplete((resp, ex) -> finalChannel.close());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             future.completeExceptionally(e);

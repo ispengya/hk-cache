@@ -5,6 +5,7 @@ import com.ispengya.hkcache.remoting.protocol.Command;
 import com.ispengya.hkcache.remoting.protocol.Serializer;
 import com.ispengya.hkcache.server.core.HotKeyAggregateService;
 import com.ispengya.hkcache.server.model.AccessReport;
+import com.ispengya.hkcache.remoting.server.ServerChannelManager;
 import io.netty.channel.ChannelHandlerContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +26,7 @@ public final class ReportRequestHandler implements RequestHandler {
 
     private final HotKeyAggregateService aggregateService;
     private final Serializer serializer;
+    private final ServerChannelManager channelManager;
 
     /**
      * 构造上报请求处理器。
@@ -33,9 +35,11 @@ public final class ReportRequestHandler implements RequestHandler {
      * @param serializer       序列化器
      */
     public ReportRequestHandler(HotKeyAggregateService aggregateService,
-                                Serializer serializer) {
+                                Serializer serializer,
+                                ServerChannelManager channelManager) {
         this.aggregateService = aggregateService;
         this.serializer = serializer;
+        this.channelManager = channelManager;
     }
 
     @Override
@@ -45,6 +49,8 @@ public final class ReportRequestHandler implements RequestHandler {
             if (message == null) {
                 return;
             }
+
+            channelManager.bindInstance(message.getInstanceId(), ctx.channel());
 
             Map<String, Integer> counts = message.getKeyAccessCounts();
             if (counts != null) {

@@ -1,9 +1,12 @@
 package com.ispengya.hkcache.server.scheduler;
 
+import com.ispengya.hkcache.remoting.protocol.Serializer;
+import com.ispengya.hkcache.remoting.server.ServerChannelManager;
 import com.ispengya.hkcache.server.core.HotKeyAggregateService;
 import com.ispengya.hkcache.server.core.HotKeyComputeAlgorithm;
 import com.ispengya.hkcache.server.core.HotKeyResultStore;
 import com.ispengya.hkcache.server.core.InstanceRegistry;
+
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -24,6 +27,8 @@ public final class AggregateScheduler {
     private final HotKeyResultStore resultStore;
     private final InstanceRegistry instanceRegistry;
     private final long periodMillis;
+    private final ServerChannelManager channelManager;
+    private final Serializer serializer;
 
     /**
      * 构造调度器。
@@ -42,7 +47,9 @@ public final class AggregateScheduler {
                               HotKeyComputeAlgorithm algorithm,
                               HotKeyResultStore resultStore,
                               InstanceRegistry instanceRegistry,
-                              long periodMillis) {
+                              long periodMillis,
+                              ServerChannelManager channelManager,
+                              Serializer serializer) {
         this.scheduler = scheduler;
         this.workerPool = workerPool;
         this.aggregateService = aggregateService;
@@ -50,6 +57,8 @@ public final class AggregateScheduler {
         this.resultStore = resultStore;
         this.instanceRegistry = instanceRegistry;
         this.periodMillis = periodMillis;
+        this.channelManager = channelManager;
+        this.serializer = serializer;
     }
 
     /**
@@ -78,7 +87,9 @@ public final class AggregateScheduler {
                     instanceId,
                     aggregateService,
                     algorithm,
-                    resultStore
+                    resultStore,
+                    channelManager,
+                    serializer
             );
             workerPool.submit(task);
         }

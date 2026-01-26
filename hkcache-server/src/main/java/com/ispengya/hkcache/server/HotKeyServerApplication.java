@@ -53,8 +53,7 @@ public class HotKeyServerApplication {
         
         Serializer serializer = new JdkSerializer();
 
-        // 4. Register Handlers
-        dispatcher.registerHandler(CommandType.ACCESS_REPORT, new ReportRequestHandler(aggregateService, serializer));
+        dispatcher.registerHandler(CommandType.ACCESS_REPORT, new ReportRequestHandler(aggregateService, serializer, channelManager));
         dispatcher.registerHandler(CommandType.HOT_KEY_QUERY, new HotKeyQueryHandler(resultStore, serializer));
 
         // 5. Scheduler
@@ -66,8 +65,10 @@ public class HotKeyServerApplication {
                 aggregateService,
                 algorithm,
                 resultStore,
-                aggregator, // aggregator implements InstanceRegistry
-                1000L // Compute every 1s
+                aggregator,
+                1000L,
+                channelManager,
+                serializer
         );
 
         // 6. Bootstrap

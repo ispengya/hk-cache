@@ -14,5 +14,6 @@ public enum CommandType {
 
     ACCESS_REPORT,
     HOT_KEY_QUERY,
-    ADMIN_PING
+    ADMIN_PING,
+    HOT_KEY_PUSH
 }

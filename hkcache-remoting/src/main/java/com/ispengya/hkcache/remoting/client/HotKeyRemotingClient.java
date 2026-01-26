@@ -10,6 +10,7 @@ import com.ispengya.hkcache.remoting.protocol.Serializer;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
  * HotKeyRemotingClient 封装了与服务端交互的业务请求逻辑。
@@ -20,11 +21,29 @@ public final class HotKeyRemotingClient {
 
     private final Serializer serializer;
     private final ClientRequestSender sender;
+    private volatile Consumer<HotKeyViewMessage> pushListener;
 
     public HotKeyRemotingClient(Serializer serializer,
                                 ClientRequestSender sender) {
         this.serializer = serializer;
         this.sender = sender;
+        ClientInboundHandler.setPushHandler(this::handlePushCommand);
+    }
+
+    public void setPushListener(Consumer<HotKeyViewMessage> listener) {
+        this.pushListener = listener;
+    }
+
+    private void handlePushCommand(Command command) {
+        if (command.getType() != CommandType.HOT_KEY_PUSH) {
+            return;
+        }
+        Consumer<HotKeyViewMessage> listener = pushListener;
+        if (listener == null) {
+            return;
+        }
+        HotKeyViewMessage message = serializer.deserialize(command.getPayload(), HotKeyViewMessage.class);
+        listener.accept(message);
     }
 
     /**

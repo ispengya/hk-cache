@@ -35,7 +35,7 @@ public class HotKeyDetector {
 
     // 配置参数（后续可抽取到 Properties）
     private final long reportPeriodMillis = 5000L;
-    private final long queryPeriodMillis = 1000L;
+    private final long queryPeriodMillis = 30000L;
     private final long queryTimeoutMillis = 3000L;
 
     public HotKeyDetector(InstanceConfig instanceConfig,
@@ -45,9 +45,11 @@ public class HotKeyDetector {
         this.remotingClient = remotingClient;
         this.hotKeySet = hotKeySet;
         this.scheduler = Executors.newScheduledThreadPool(2);
+        this.remotingClient.setPushListener(this::handlePush);
     }
 
     public void start() {
+        sendRegistration();
         // 定时上报任务
         scheduler.scheduleAtFixedRate(this::reportTask, reportPeriodMillis, reportPeriodMillis, TimeUnit.MILLISECONDS);
         // 定时拉取任务
@@ -105,19 +107,49 @@ public class HotKeyDetector {
         }
     }
 
+    private void sendRegistration() {
+        try {
+            AccessReportMessage message = new AccessReportMessage();
+            message.setInstanceId(instanceId);
+            message.setTimestamp(System.currentTimeMillis());
+            message.setKeyAccessCounts(new HashMap<>());
+            remotingClient.reportAccess(message);
+        } catch (Exception e) {
+            log.error("Failed to send registration message", e);
+        }
+    }
+
     private void queryTask() {
         try {
             long currentVersion = hotKeySet.getVersion();
             HotKeyViewMessage message = remotingClient.queryHotKeys(instanceId, currentVersion, queryTimeoutMillis);
 
-            if (message != null && message.getVersion() > currentVersion) {
-                hotKeySet.update(message.getHotKeys(), message.getVersion());
-                if (log.isDebugEnabled()) {
-                    log.debug("Updated hot keys to version {}, count: {}", message.getVersion(), message.getHotKeys().size());
-                }
-            }
+            handleMessage(message, currentVersion);
         } catch (Exception e) {
             log.error("Failed to query hot keys", e);
+        }
+    }
+
+    private void handlePush(HotKeyViewMessage message) {
+        if (message == null) {
+            return;
+        }
+        if (instanceId != null && !instanceId.equals(message.getInstanceId())) {
+            return;
+        }
+        long currentVersion = hotKeySet.getVersion();
+        handleMessage(message, currentVersion);
+    }
+
+    private void handleMessage(HotKeyViewMessage message, long currentVersion) {
+        if (message == null) {
+            return;
+        }
+        if (message.getVersion() > currentVersion) {
+            hotKeySet.update(message.getHotKeys(), message.getVersion());
+            if (log.isDebugEnabled()) {
+                log.debug("Updated hot keys to version {}, count: {}", message.getVersion(), message.getHotKeys().size());
+            }
         }
     }
 }

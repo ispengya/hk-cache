@@ -1,47 +1,83 @@
 package com.ispengya.hkcache.remoting.server;
 
+import com.ispengya.hkcache.remoting.protocol.Command;
 import io.netty.channel.Channel;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.util.concurrent.GlobalEventExecutor;
 
-/**
- * ServerChannelManager 负责管理服务端已接入的 Channel 集合。
- *
- * <p>内部基于 Netty 的 {@link ChannelGroup} 实现统一的连接管理，支持统一
- * 广播、关闭等操作。</p>
- */
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
 public class ServerChannelManager {
 
-    /**
-     * 当前已注册的所有客户端连接。
-     */
     private final ChannelGroup channels = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
 
-    /**
-     * 注册新的客户端连接。
-     *
-     * @param channel 新建连接对应的 Channel
-     */
+    private final Map<String, Set<Channel>> instanceChannels = new ConcurrentHashMap<>();
+
+    private final Map<Channel, String> channelIps = new ConcurrentHashMap<>();
+
     public void register(Channel channel) {
         channels.add(channel);
     }
 
-    /**
-     * 取消注册客户端连接。
-     *
-     * @param channel 断开的 Channel
-     */
     public void unregister(Channel channel) {
         channels.remove(channel);
+        channelIps.remove(channel);
+        for (Set<Channel> set : instanceChannels.values()) {
+            set.remove(channel);
+        }
     }
 
-    /**
-     * 获取当前管理的 Channel 集合。
-     *
-     * @return ChannelGroup
-     */
     public ChannelGroup getChannels() {
         return channels;
+    }
+
+    public void bindInstance(String instanceId, Channel channel) {
+        if (instanceId == null || instanceId.isEmpty() || channel == null) {
+            return;
+        }
+        instanceChannels
+                .computeIfAbsent(instanceId, k -> Collections.newSetFromMap(new ConcurrentHashMap<>()))
+                .add(channel);
+        String ip = extractIp(channel);
+        if (ip != null) {
+            channelIps.put(channel, ip);
+        }
+    }
+
+    public void broadcastToInstance(String instanceId, Command command) {
+        if (instanceId == null || command == null) {
+            return;
+        }
+        Set<Channel> set = instanceChannels.get(instanceId);
+        if (set == null) {
+            return;
+        }
+        for (Channel channel : set) {
+            if (channel.isActive()) {
+                channel.writeAndFlush(command);
+            }
+        }
+    }
+
+    public String getIp(Channel channel) {
+        return channelIps.get(channel);
+    }
+
+    private String extractIp(Channel channel) {
+        SocketAddress remote = channel.remoteAddress();
+        if (remote instanceof InetSocketAddress) {
+            InetSocketAddress inet = (InetSocketAddress) remote;
+            if (inet.getAddress() != null) {
+                return inet.getAddress().getHostAddress();
+            }
+            return inet.getHostString();
+        }
+        return null;
     }
 }

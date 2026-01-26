@@ -6,6 +6,7 @@ import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.util.AttributeKey;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
 /**
  * ClientInboundHandler 是客户端入站处理器。
@@ -20,6 +21,12 @@ public class ClientInboundHandler extends SimpleChannelInboundHandler<Command> {
     public static final AttributeKey<CompletableFuture<Command>> FUTURE_KEY =
             AttributeKey.valueOf("future");
 
+    private static volatile Consumer<Command> pushHandler;
+
+    public static void setPushHandler(Consumer<Command> handler) {
+        pushHandler = handler;
+    }
+
     /**
      * 收到服务端返回的 Command 时，将其写入对应的 future。
      */
@@ -28,6 +35,12 @@ public class ClientInboundHandler extends SimpleChannelInboundHandler<Command> {
         CompletableFuture<Command> future = ctx.channel().attr(FUTURE_KEY).get();
         if (future != null) {
             future.complete(msg);
+            ctx.channel().attr(FUTURE_KEY).set(null);
+            return;
+        }
+        Consumer<Command> handler = pushHandler;
+        if (handler != null) {
+            handler.accept(msg);
         }
     }
 
@@ -39,6 +52,7 @@ public class ClientInboundHandler extends SimpleChannelInboundHandler<Command> {
         CompletableFuture<Command> future = ctx.channel().attr(FUTURE_KEY).get();
         if (future != null) {
             future.completeExceptionally(cause);
+            ctx.channel().attr(FUTURE_KEY).set(null);
         }
         ctx.close();
     }

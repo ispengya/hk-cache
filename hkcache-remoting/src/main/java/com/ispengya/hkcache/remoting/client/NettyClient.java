@@ -33,6 +33,11 @@ public final class NettyClient {
     private Bootstrap bootstrap;
 
     /**
+     * 长连接 Channel。
+     */
+    private volatile Channel channel;
+
+    /**
      * 构造 NettyClient。
      *
      * @param config 客户端配置
@@ -63,15 +68,26 @@ public final class NettyClient {
     }
 
     /**
-     * 建立一次性连接，返回可用于发送请求的 Channel。
+     * 获取或建立长连接 Channel。
      *
      * @return 已连接的 Channel
      * @throws InterruptedException 连接被中断时抛出
      */
-    public Channel connectOnce() throws InterruptedException {
-        InetSocketAddress address = selectServerAddress();
-        ChannelFuture future = bootstrap.connect(address).sync();
-        return future.channel();
+    public Channel getOrCreateChannel() throws InterruptedException {
+        Channel current = channel;
+        if (current != null && current.isActive()) {
+            return current;
+        }
+        synchronized (this) {
+            current = channel;
+            if (current != null && current.isActive()) {
+                return current;
+            }
+            InetSocketAddress address = selectServerAddress();
+            ChannelFuture future = bootstrap.connect(address).sync();
+            channel = future.channel();
+            return channel;
+        }
     }
 
     /**
@@ -91,6 +107,10 @@ public final class NettyClient {
      * 停止客户端并释放资源。
      */
     public void stop() {
+        Channel current = channel;
+        if (current != null) {
+            current.close();
+        }
         if (workerGroup != null) {
             workerGroup.shutdownGracefully();
         }
