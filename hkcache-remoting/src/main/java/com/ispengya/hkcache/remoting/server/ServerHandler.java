@@ -3,6 +3,8 @@ package com.ispengya.hkcache.remoting.server;
 import com.ispengya.hkcache.remoting.protocol.Command;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.handler.timeout.IdleState;
+import io.netty.handler.timeout.IdleStateEvent;
 
 /**
  * ServerHandler 是 remoting 服务端的入站处理器。
@@ -49,5 +51,17 @@ public final class ServerHandler extends SimpleChannelInboundHandler<Command> {
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, Command msg) {
         dispatcher.dispatch(ctx, msg);
+    }
+
+    @Override
+    public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+        if (evt instanceof IdleStateEvent) {
+            IdleStateEvent e = (IdleStateEvent) evt;
+            if (e.state() == IdleState.READER_IDLE) {
+                ctx.close();
+                return;
+            }
+        }
+        super.userEventTriggered(ctx, evt);
     }
 }

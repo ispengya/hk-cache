@@ -2,6 +2,8 @@ package com.ispengya.hkcache.remoting.client;
 
 import com.ispengya.hkcache.remoting.codec.CommandDecoder;
 import com.ispengya.hkcache.remoting.codec.CommandEncoder;
+import com.ispengya.hkcache.remoting.protocol.Command;
+import com.ispengya.hkcache.remoting.protocol.CommandType;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -9,6 +11,10 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * NettyClient 封装基于 Netty 的客户端启动与连接逻辑。
@@ -32,16 +38,27 @@ public final class NettyClient {
      */
     private Bootstrap bootstrap;
 
-    /**
-     * 长连接 Channel。
-     */
-    private volatile Channel channel;
+    private static final int DEFAULT_PUSH_POOL_SIZE = 1;
+
+    private static final int DEFAULT_REPORT_POOL_SIZE = 2;
+
+    private final int pushPoolSize = DEFAULT_PUSH_POOL_SIZE;
+
+    private final int reportPoolSize = DEFAULT_REPORT_POOL_SIZE;
+
+    private final List<Channel> pushChannelPool = new ArrayList<>(DEFAULT_PUSH_POOL_SIZE);
+
+    private final List<Channel> reportChannelPool = new ArrayList<>(DEFAULT_REPORT_POOL_SIZE);
+
+    private final AtomicInteger nextPushIndex = new AtomicInteger(0);
+
+    private final AtomicInteger nextReportIndex = new AtomicInteger(0);
 
     /**
-     * 构造 NettyClient。
-     *
-     * @param config 客户端配置
+     * 绑定的服务端地址（首次连接时选定，用于保持绑定语义）。
      */
+    private volatile InetSocketAddress boundAddress;
+
     public NettyClient(NettyClientConfig config) {
         this.config = config;
     }
@@ -65,29 +82,58 @@ public final class NettyClient {
                         p.addLast(new ClientInboundHandler());
                     }
                 });
+        workerGroup.next().scheduleAtFixedRate(() -> {
+            try {
+                Channel channel = pickPushChannel();
+                if (channel != null && channel.isActive()) {
+                    Command ping = new Command(CommandType.ADMIN_PING, 0L, null);
+                    channel.writeAndFlush(ping);
+                }
+            } catch (Exception ignored) {
+            }
+        }, 30, 30, TimeUnit.SECONDS);
     }
 
     /**
-     * 获取或建立长连接 Channel。
+     * 获取或建立连接池中的一个可用 Channel（用于 one-way 或异步请求）。
      *
-     * @return 已连接的 Channel
+     * @return 可用的 Channel
      * @throws InterruptedException 连接被中断时抛出
      */
     public Channel getOrCreateChannel() throws InterruptedException {
-        Channel current = channel;
-        if (current != null && current.isActive()) {
-            return current;
-        }
-        synchronized (this) {
-            current = channel;
-            if (current != null && current.isActive()) {
-                return current;
+        return pickReportChannel();
+    }
+
+    public Channel pickReportChannel() throws InterruptedException {
+        ensureReportPoolInitialized();
+        int start = Math.abs(nextReportIndex.getAndIncrement());
+        for (int i = 0; i < reportPoolSize; i++) {
+            int idx = (start + i) % reportPoolSize;
+            Channel ch = reportChannelPool.get(idx);
+            if (ch != null && ch.isActive()) {
+                return ch;
             }
-            InetSocketAddress address = selectServerAddress();
-            ChannelFuture future = bootstrap.connect(address).sync();
-            channel = future.channel();
-            return channel;
         }
+        ensureReportPoolInitialized();
+        return reportChannelPool.get(0);
+    }
+
+    public Channel pickPushChannel() throws InterruptedException {
+        ensurePushPoolInitialized();
+        int start = Math.abs(nextPushIndex.getAndIncrement());
+        for (int i = 0; i < pushPoolSize; i++) {
+            int idx = (start + i) % pushPoolSize;
+            Channel ch = pushChannelPool.get(idx);
+            if (ch != null && ch.isActive()) {
+                return ch;
+            }
+        }
+        ensurePushPoolInitialized();
+        return pushChannelPool.get(0);
+    }
+
+    public Channel pickChannel() throws InterruptedException {
+        return pickReportChannel();
     }
 
     /**
@@ -99,17 +145,58 @@ public final class NettyClient {
         if (config.getServerAddresses() == null || config.getServerAddresses().isEmpty()) {
             throw new IllegalStateException("No server addresses configured");
         }
-        // 简单实现：返回列表中的第一个地址，可按需扩展成轮询或随机。
         return config.getServerAddresses().get(0);
+    }
+
+    private void ensurePushPoolInitialized() throws InterruptedException {
+        synchronized (this) {
+            if (boundAddress == null) {
+                boundAddress = selectServerAddress();
+            }
+            while (pushChannelPool.size() < pushPoolSize) {
+                pushChannelPool.add(null);
+            }
+            for (int i = 0; i < pushPoolSize; i++) {
+                Channel ch = pushChannelPool.get(i);
+                if (ch == null || !ch.isActive()) {
+                    ChannelFuture future = bootstrap.connect(boundAddress).sync();
+                    pushChannelPool.set(i, future.channel());
+                }
+            }
+        }
+    }
+
+    private void ensureReportPoolInitialized() throws InterruptedException {
+        synchronized (this) {
+            if (boundAddress == null) {
+                boundAddress = selectServerAddress();
+            }
+            while (reportChannelPool.size() < reportPoolSize) {
+                reportChannelPool.add(null);
+            }
+            for (int i = 0; i < reportPoolSize; i++) {
+                Channel ch = reportChannelPool.get(i);
+                if (ch == null || !ch.isActive()) {
+                    ChannelFuture future = bootstrap.connect(boundAddress).sync();
+                    reportChannelPool.set(i, future.channel());
+                }
+            }
+        }
     }
 
     /**
      * 停止客户端并释放资源。
      */
     public void stop() {
-        Channel current = channel;
-        if (current != null) {
-            current.close();
+        for (Channel ch : pushChannelPool) {
+            if (ch != null) {
+                ch.close();
+            }
+        }
+        for (Channel ch : reportChannelPool) {
+            if (ch != null) {
+                ch.close();
+            }
         }
         if (workerGroup != null) {
             workerGroup.shutdownGracefully();

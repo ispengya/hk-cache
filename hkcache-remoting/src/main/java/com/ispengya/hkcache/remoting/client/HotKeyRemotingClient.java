@@ -2,6 +2,7 @@ package com.ispengya.hkcache.remoting.client;
 
 import com.ispengya.hkcache.remoting.message.AccessReportMessage;
 import com.ispengya.hkcache.remoting.message.HotKeyQueryRequest;
+import com.ispengya.hkcache.remoting.message.PushChannelRegisterMessage;
 import com.ispengya.hkcache.remoting.message.HotKeyViewMessage;
 import com.ispengya.hkcache.remoting.protocol.Command;
 import com.ispengya.hkcache.remoting.protocol.CommandType;
@@ -53,6 +54,13 @@ public final class HotKeyRemotingClient {
         byte[] bytes = serializer.serialize(message);
         Command command = new Command(CommandType.ACCESS_REPORT, bytes);
         sender.sendOneWay(command);
+    }
+
+    public void registerPushChannel(String instanceId) {
+        PushChannelRegisterMessage message = new PushChannelRegisterMessage(instanceId);
+        byte[] bytes = serializer.serialize(message);
+        Command command = new Command(CommandType.PUSH_CHANNEL_REGISTER, bytes);
+        sender.sendOneWayOnPushChannel(command);
     }
 
     /**

@@ -49,7 +49,7 @@ public class HotKeyDetector {
     }
 
     public void start() {
-        sendRegistration();
+        remotingClient.registerPushChannel(instanceId);
         // 定时上报任务
         scheduler.scheduleAtFixedRate(this::reportTask, reportPeriodMillis, reportPeriodMillis, TimeUnit.MILLISECONDS);
         // 定时拉取任务
@@ -123,8 +123,7 @@ public class HotKeyDetector {
         try {
             long currentVersion = hotKeySet.getVersion();
             HotKeyViewMessage message = remotingClient.queryHotKeys(instanceId, currentVersion, queryTimeoutMillis);
-
-            handleMessage(message, currentVersion);
+            handleMessage(message);
         } catch (Exception e) {
             log.error("Failed to query hot keys", e);
         }
@@ -137,19 +136,16 @@ public class HotKeyDetector {
         if (instanceId != null && !instanceId.equals(message.getInstanceId())) {
             return;
         }
-        long currentVersion = hotKeySet.getVersion();
-        handleMessage(message, currentVersion);
+        handleMessage(message);
     }
 
-    private void handleMessage(HotKeyViewMessage message, long currentVersion) {
+    private void handleMessage(HotKeyViewMessage message) {
         if (message == null) {
             return;
         }
-        if (message.getVersion() > currentVersion) {
-            hotKeySet.update(message.getHotKeys(), message.getVersion());
-            if (log.isDebugEnabled()) {
-                log.debug("Updated hot keys to version {}, count: {}", message.getVersion(), message.getHotKeys().size());
-            }
+        boolean updated = hotKeySet.update(message.getHotKeys(), message.getVersion());
+        if (updated && log.isDebugEnabled()) {
+            log.debug("Updated hot keys to version {}, count: {}", message.getVersion(), message.getHotKeys().size());
         }
     }
 }

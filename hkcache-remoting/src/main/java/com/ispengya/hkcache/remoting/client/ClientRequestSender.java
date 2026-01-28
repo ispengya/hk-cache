@@ -1,9 +1,11 @@
 package com.ispengya.hkcache.remoting.client;
 
 import com.ispengya.hkcache.remoting.protocol.Command;
+import com.ispengya.hkcache.remoting.protocol.CommandType;
 import io.netty.channel.Channel;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * ClientRequestSender 封装客户端请求发送逻辑。
@@ -16,6 +18,8 @@ public final class ClientRequestSender {
      * 底层 NettyClient，用于建立连接。
      */
     private final NettyClient nettyClient;
+
+    private static final AtomicLong REQUEST_ID = new AtomicLong(0L);
 
     /**
      * 构造请求发送器。
@@ -33,7 +37,16 @@ public final class ClientRequestSender {
      */
     public void sendOneWay(Command command) {
         try {
-            Channel channel = nettyClient.getOrCreateChannel();
+            Channel channel = nettyClient.pickReportChannel();
+            channel.writeAndFlush(command);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    public void sendOneWayOnPushChannel(Command command) {
+        try {
+            Channel channel = nettyClient.pickPushChannel();
             channel.writeAndFlush(command);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -50,10 +63,11 @@ public final class ClientRequestSender {
     public CompletableFuture<Command> sendSync(Command command, long timeoutMillis) {
         CompletableFuture<Command> future = new CompletableFuture<>();
         try {
-            Channel channel = nettyClient.getOrCreateChannel();
-            channel.attr(ClientInboundHandler.FUTURE_KEY).set(future);
-
-            channel.writeAndFlush(command);
+            long requestId = REQUEST_ID.incrementAndGet();
+            Command cmdWithId = new Command(command.getType(), requestId, command.getPayload());
+            ClientInboundHandler.registerFuture(requestId, future);
+            Channel channel = nettyClient.pickReportChannel();
+            channel.writeAndFlush(cmdWithId);
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

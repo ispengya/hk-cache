@@ -7,9 +7,7 @@ import com.ispengya.hkcache.remoting.server.NettyServer;
 import com.ispengya.hkcache.remoting.server.NettyServerConfig;
 import com.ispengya.hkcache.remoting.server.ServerChannelManager;
 import com.ispengya.hkcache.server.core.*;
-import com.ispengya.hkcache.server.remoting.DefaultServerRequestDispatcher;
-import com.ispengya.hkcache.server.remoting.HotKeyQueryHandler;
-import com.ispengya.hkcache.server.remoting.ReportRequestHandler;
+import com.ispengya.hkcache.server.remoting.*;
 import com.ispengya.hkcache.server.scheduler.AggregateScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,8 +51,10 @@ public class HotKeyServerApplication {
         
         Serializer serializer = new JdkSerializer();
 
-        dispatcher.registerHandler(CommandType.ACCESS_REPORT, new ReportRequestHandler(aggregateService, serializer, channelManager));
+        dispatcher.registerHandler(CommandType.ACCESS_REPORT, new ReportRequestHandler(aggregateService, serializer));
         dispatcher.registerHandler(CommandType.HOT_KEY_QUERY, new HotKeyQueryHandler(resultStore, serializer));
+        dispatcher.registerHandler(CommandType.ADMIN_PING, new PingRequestHandler());
+        dispatcher.registerHandler(CommandType.PUSH_CHANNEL_REGISTER, new PushChannelRegisterHandler(channelManager, serializer));
 
         // 5. Scheduler
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);

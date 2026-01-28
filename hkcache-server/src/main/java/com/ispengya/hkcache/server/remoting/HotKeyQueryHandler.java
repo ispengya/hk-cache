@@ -77,7 +77,7 @@ public final class HotKeyQueryHandler implements RequestHandler {
             }
 
             byte[] payload = serializer.serialize(responseMsg);
-            Command response = new Command(CommandType.HOT_KEY_QUERY, payload);
+            Command response = new Command(CommandType.HOT_KEY_QUERY, command.getRequestId(), payload);
             ctx.writeAndFlush(response);
 
         } catch (Exception e) {

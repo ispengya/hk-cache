@@ -15,5 +15,6 @@ public enum CommandType {
     ACCESS_REPORT,
     HOT_KEY_QUERY,
     ADMIN_PING,
-    HOT_KEY_PUSH
+    HOT_KEY_PUSH,
+    PUSH_CHANNEL_REGISTER
 }

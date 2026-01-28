@@ -8,41 +8,30 @@ package com.ispengya.hkcache.remoting.protocol;
  */
 public final class Command {
 
-    /**
-     * 命令类型，用于标识本次交互的业务语义。
-     */
     private final CommandType type;
 
-    /**
-     * 命令负载的二进制数据，由具体业务对象序列化而来。
-     */
+    private final long requestId;
+
     private final byte[] payload;
 
-    /**
-     * 构造命令对象。
-     *
-     * @param type    命令类型
-     * @param payload 序列化后的负载字节数组
-     */
     public Command(CommandType type, byte[] payload) {
+        this(type, 0L, payload);
+    }
+
+    public Command(CommandType type, long requestId, byte[] payload) {
         this.type = type;
+        this.requestId = requestId;
         this.payload = payload;
     }
 
-    /**
-     * 获取命令类型。
-     *
-     * @return 命令类型
-     */
     public CommandType getType() {
         return type;
     }
 
-    /**
-     * 获取命令负载的二进制数据。
-     *
-     * @return 负载字节数组
-     */
+    public long getRequestId() {
+        return requestId;
+    }
+
     public byte[] getPayload() {
         return payload;
     }

@@ -24,7 +24,11 @@ public class HotKeySet {
      * @param keys 新的热 key 集合
      * @param newVersion 新的版本号
      */
-    public void update(Iterable<String> keys, long newVersion) {
+    public synchronized boolean update(Iterable<String> keys, long newVersion) {
+        long current = version.get();
+        if (newVersion <= current) {
+            return false;
+        }
         Set<String> newSet = new HashSet<>();
         if (keys != null) {
             for (String key : keys) {
@@ -35,6 +39,7 @@ public class HotKeySet {
         }
         this.hotKeys = Collections.unmodifiableSet(newSet);
         this.version.set(newVersion);
+        return true;
     }
 
     /**
