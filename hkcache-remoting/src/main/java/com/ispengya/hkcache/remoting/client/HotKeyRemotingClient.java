@@ -12,6 +12,8 @@ import java.util.HashMap;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -25,6 +27,7 @@ public final class HotKeyRemotingClient {
     private final Serializer serializer;
     private final ClientRequestSender sender;
     private volatile Consumer<HotKeyViewMessage> pushListener;
+    private final ExecutorService pushExecutor = Executors.newSingleThreadExecutor();
 
     public HotKeyRemotingClient(Serializer serializer,
                                 ClientRequestSender sender) {
@@ -45,8 +48,11 @@ public final class HotKeyRemotingClient {
         if (listener == null) {
             return;
         }
-        HotKeyViewMessage message = serializer.deserialize(command.getPayload(), HotKeyViewMessage.class);
-        listener.accept(message);
+        byte[] payload = command.getPayload();
+        pushExecutor.execute(() -> {
+            HotKeyViewMessage message = serializer.deserialize(payload, HotKeyViewMessage.class);
+            listener.accept(message);
+        });
     }
 
     public void reportAccess(AccessReportMessage message) {
