@@ -104,18 +104,7 @@ public class HotKeyAutoConfiguration {
     public HotKeyDetector hkcacheHotKeyDetector(HotKeyProperties properties,
                                                 HotKeyRemotingClient remotingClient,
                                                 HotKeySet hotKeySet) {
-        // 取第一个实例配置作为 detector 的上下文，简化处理
-        // 实际场景可能需要为每个 HotKeyClient 创建独立的 Detector，或者 Detector 支持多实例
-        // 这里假设是单实例模式或共用
-        List<InstanceConfig> instances = properties.getInstances();
-        InstanceConfig config;
-        if (CollUtil.isEmpty(instances)) {
-            config = new InstanceConfig();
-            config.setInstanceName("default");
-        } else {
-            config = instances.get(0);
-        }
-        HotKeyDetector detector = new HotKeyDetector(config, remotingClient, hotKeySet);
+        HotKeyDetector detector = new HotKeyDetector(remotingClient, hotKeySet);
         detector.start();
         return detector;
     }
