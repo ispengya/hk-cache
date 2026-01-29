@@ -53,9 +53,9 @@ public class HotKeyClient {
     public <T> T get(String key, ValueLoader<T> loader) {
         long startNs = System.nanoTime();
 
-        hotKeyDetector.recordAccess(key);
+        hotKeyDetector.recordAccess(instanceName, key);
 
-        boolean isHot = hotKeySet.contains(key);
+        boolean isHot = hotKeySet.contains(instanceName, key);
 
         CacheableContext context = new CacheableContext(instanceName, key, isHot, System.currentTimeMillis());
 

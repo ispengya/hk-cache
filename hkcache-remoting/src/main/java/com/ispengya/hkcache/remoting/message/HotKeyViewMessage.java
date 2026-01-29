@@ -1,6 +1,7 @@
 package com.ispengya.hkcache.remoting.message;
 
 import java.io.Serializable;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -10,6 +11,35 @@ import java.util.Set;
  * 热 key 集合封装在该消息中返回。</p>
  */
 public class HotKeyViewMessage implements Serializable {
+
+    public static final class ViewEntry implements Serializable {
+        private long version;
+        private Set<String> hotKeys;
+
+        public ViewEntry() {
+        }
+
+        public ViewEntry(long version, Set<String> hotKeys) {
+            this.version = version;
+            this.hotKeys = hotKeys;
+        }
+
+        public long getVersion() {
+            return version;
+        }
+
+        public void setVersion(long version) {
+            this.version = version;
+        }
+
+        public Set<String> getHotKeys() {
+            return hotKeys;
+        }
+
+        public void setHotKeys(Set<String> hotKeys) {
+            this.hotKeys = hotKeys;
+        }
+    }
 
     /**
      * 对应的实例 ID。
@@ -25,6 +55,7 @@ public class HotKeyViewMessage implements Serializable {
      * 当前判定为热 key 的 key 集合。
      */
     private Set<String> hotKeys;
+    private Map<String, ViewEntry> views;
 
     /**
      * 无参构造函数，便于序列化框架使用。
@@ -85,5 +116,13 @@ public class HotKeyViewMessage implements Serializable {
      */
     public void setHotKeys(Set<String> hotKeys) {
         this.hotKeys = hotKeys;
+    }
+
+    public Map<String, ViewEntry> getViews() {
+        return views;
+    }
+
+    public void setViews(Map<String, ViewEntry> views) {
+        this.views = views;
     }
 }

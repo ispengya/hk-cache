@@ -21,6 +21,8 @@ public class ServerChannelManager {
 
     private final Map<Channel, String> channelIps = new ConcurrentHashMap<>();
 
+    private final Set<Channel> pushChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
+
     public void register(Channel channel) {
         channels.add(channel);
     }
@@ -31,10 +33,22 @@ public class ServerChannelManager {
         for (Set<Channel> set : instanceChannels.values()) {
             set.remove(channel);
         }
+        pushChannels.remove(channel);
     }
 
     public ChannelGroup getChannels() {
         return channels;
+    }
+
+    public void registerPushChannel(Channel channel) {
+        if (channel == null) {
+            return;
+        }
+        pushChannels.add(channel);
+        String ip = extractIp(channel);
+        if (ip != null) {
+            channelIps.put(channel, ip);
+        }
     }
 
     public void bindInstance(String instanceId, Channel channel) {
@@ -59,6 +73,17 @@ public class ServerChannelManager {
             return;
         }
         for (Channel channel : set) {
+            if (channel.isActive()) {
+                channel.writeAndFlush(command);
+            }
+        }
+    }
+
+    public void broadcastOnPushChannels(Command command) {
+        if (command == null) {
+            return;
+        }
+        for (Channel channel : pushChannels) {
             if (channel.isActive()) {
                 channel.writeAndFlush(command);
             }

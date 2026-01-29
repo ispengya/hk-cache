@@ -1,6 +1,7 @@
 package com.ispengya.hkcache.remoting.message;
 
 import java.io.Serializable;
+import java.util.Map;
 
 /**
  * HotKeyQueryRequest 表示 CLI 向 server 端发起的热 key 查询请求。
@@ -19,6 +20,7 @@ public class HotKeyQueryRequest implements Serializable {
      * 上一次接收到的热 key 视图版本号。
      */
     private long lastVersion;
+    private Map<String, Long> lastVersions;
 
     /**
      * 无参构造函数，便于序列化框架使用。
@@ -35,6 +37,10 @@ public class HotKeyQueryRequest implements Serializable {
     public HotKeyQueryRequest(String instanceId, long lastVersion) {
         this.instanceId = instanceId;
         this.lastVersion = lastVersion;
+    }
+
+    public HotKeyQueryRequest(Map<String, Long> lastVersions) {
+        this.lastVersions = lastVersions;
     }
 
     /**
@@ -63,5 +69,13 @@ public class HotKeyQueryRequest implements Serializable {
      */
     public void setLastVersion(long lastVersion) {
         this.lastVersion = lastVersion;
+    }
+
+    public Map<String, Long> getLastVersions() {
+        return lastVersions;
+    }
+
+    public void setLastVersions(Map<String, Long> lastVersions) {
+        this.lastVersions = lastVersions;
     }
 }

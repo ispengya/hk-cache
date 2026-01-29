@@ -49,6 +49,6 @@ public final class HotKeyComputeTask implements Runnable {
         view.setHotKeys(result.getHotKeys());
         byte[] payload = serializer.serialize(view);
         Command command = new Command(CommandType.HOT_KEY_PUSH, 0L, payload);
-        channelManager.broadcastToInstance(instanceId, command);
+        channelManager.broadcastOnPushChannels(command);
     }
 }

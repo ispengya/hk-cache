@@ -8,7 +8,9 @@ import com.ispengya.hkcache.remoting.protocol.Command;
 import com.ispengya.hkcache.remoting.protocol.CommandType;
 import com.ispengya.hkcache.remoting.protocol.Serializer;
 
+import java.util.HashMap;
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -47,17 +49,14 @@ public final class HotKeyRemotingClient {
         listener.accept(message);
     }
 
-    /**
-     * 上报访问统计数据 (OneWay)
-     */
     public void reportAccess(AccessReportMessage message) {
         byte[] bytes = serializer.serialize(message);
         Command command = new Command(CommandType.ACCESS_REPORT, bytes);
         sender.sendOneWay(command);
     }
 
-    public void registerPushChannel(String instanceId) {
-        PushChannelRegisterMessage message = new PushChannelRegisterMessage(instanceId);
+    public void registerPushChannel() {
+        PushChannelRegisterMessage message = new PushChannelRegisterMessage();
         byte[] bytes = serializer.serialize(message);
         Command command = new Command(CommandType.PUSH_CHANNEL_REGISTER, bytes);
         sender.sendOneWayOnPushChannel(command);
@@ -78,6 +77,21 @@ public final class HotKeyRemotingClient {
             // 发生异常（超时或网络错误）时返回空结果或 fallback
             // 这里返回一个空视图，避免上层 NPE，业务层可以根据 version 判断是否更新
             return new HotKeyViewMessage(instanceId, lastVersion, Collections.emptySet());
+        }
+    }
+
+    public HotKeyViewMessage queryAllHotKeys(Map<String, Long> lastVersions, long timeoutMillis) {
+        HotKeyQueryRequest request = new HotKeyQueryRequest(lastVersions);
+        byte[] bytes = serializer.serialize(request);
+        Command command = new Command(CommandType.HOT_KEY_QUERY, bytes);
+        try {
+            CompletableFuture<Command> future = sender.sendSync(command, timeoutMillis);
+            Command responseCommand = future.get(timeoutMillis, TimeUnit.MILLISECONDS);
+            return serializer.deserialize(responseCommand.getPayload(), HotKeyViewMessage.class);
+        } catch (Exception e) {
+            HotKeyViewMessage message = new HotKeyViewMessage();
+            message.setViews(new HashMap<>());
+            return message;
         }
     }
 }

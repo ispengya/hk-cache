@@ -3,7 +3,6 @@ package com.ispengya.hotkey.cli.detect;
 import com.ispengya.hkcache.remoting.client.HotKeyRemotingClient;
 import com.ispengya.hkcache.remoting.message.AccessReportMessage;
 import com.ispengya.hkcache.remoting.message.HotKeyViewMessage;
-import com.ispengya.hotkey.cli.config.InstanceConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,23 +24,18 @@ public class HotKeyDetector {
 
     private static final Logger log = LoggerFactory.getLogger(HotKeyDetector.class);
 
-    private final String instanceId;
     private final HotKeyRemotingClient remotingClient;
     private final HotKeySet hotKeySet;
     private final ScheduledExecutorService scheduler;
-
-    // 暂存访问计数的 Buffer: key -> count
-    private final ConcurrentHashMap<String, LongAdder> accessBuffer = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ConcurrentHashMap<String, LongAdder>> accessBuffer = new ConcurrentHashMap<>();
 
     // 配置参数（后续可抽取到 Properties）
     private final long reportPeriodMillis = 5000L;
     private final long queryPeriodMillis = 30000L;
     private final long queryTimeoutMillis = 3000L;
 
-    public HotKeyDetector(InstanceConfig instanceConfig,
-                          HotKeyRemotingClient remotingClient,
+    public HotKeyDetector(HotKeyRemotingClient remotingClient,
                           HotKeySet hotKeySet) {
-        this.instanceId = instanceConfig.getInstanceName(); // 假设 InstanceConfig 有 getInstanceName
         this.remotingClient = remotingClient;
         this.hotKeySet = hotKeySet;
         this.scheduler = Executors.newScheduledThreadPool(2);
@@ -49,7 +43,6 @@ public class HotKeyDetector {
     }
 
     public void start() {
-        remotingClient.registerPushChannel(instanceId);
         // 定时上报任务
         scheduler.scheduleAtFixedRate(this::reportTask, reportPeriodMillis, reportPeriodMillis, TimeUnit.MILLISECONDS);
         // 定时拉取任务
@@ -60,16 +53,14 @@ public class HotKeyDetector {
         scheduler.shutdown();
     }
 
-    /**
-     * 记录一次对指定 key 的访问。
-     *
-     * @param key 访问的业务 key
-     */
-    public void recordAccess(String key) {
-        if (key == null) {
+    public void recordAccess(String instanceName, String key) {
+        if (instanceName == null || key == null) {
             return;
         }
-        accessBuffer.computeIfAbsent(key, k -> new LongAdder()).increment();
+        accessBuffer
+                .computeIfAbsent(instanceName, k -> new ConcurrentHashMap<>())
+                .computeIfAbsent(key, k -> new LongAdder())
+                .increment();
     }
 
     private void reportTask() {
@@ -78,51 +69,50 @@ public class HotKeyDetector {
                 return;
             }
 
-            // 提取并清空当前 Buffer
-            Map<String, Integer> counts = new HashMap<>();
-            accessBuffer.forEach((key, adder) -> {
-                long count = adder.sumThenReset();
-                if (count > 0) {
-                    counts.put(key, (int) count);
+            Map<String, Map<String, Integer>> snapshot = new HashMap<>();
+            accessBuffer.forEach((instanceName, keyMap) -> {
+                Map<String, Integer> counts = new HashMap<>();
+                keyMap.forEach((key, adder) -> {
+                    long count = adder.sumThenReset();
+                    if (count > 0) {
+                        counts.put(key, (int) count);
+                    }
+                });
+                if (!counts.isEmpty()) {
+                    snapshot.put(instanceName, counts);
                 }
             });
-            // 清理 count 为 0 的 key，避免 map 无限膨胀（sumThenReset 后 adder 仍在 map 中）
-            // 简单策略：如果 map 过大，整体重建。或者依赖 computeIfAbsent 的开销可控。
-            // 生产环境建议使用更高效的结构或定期清理。这里简单做 remove。
-            accessBuffer.entrySet().removeIf(e -> e.getValue().sum() == 0);
 
-            if (counts.isEmpty()) {
+            accessBuffer.forEach((instanceName, keyMap) -> {
+                keyMap.entrySet().removeIf(e -> e.getValue().sum() == 0);
+                if (keyMap.isEmpty()) {
+                    accessBuffer.remove(instanceName, keyMap);
+                }
+            });
+
+            if (snapshot.isEmpty()) {
                 return;
             }
 
-            AccessReportMessage message = new AccessReportMessage();
-            message.setInstanceId(instanceId);
-            message.setTimestamp(System.currentTimeMillis());
-            message.setKeyAccessCounts(counts);
-
-            remotingClient.reportAccess(message);
+            long timestamp = System.currentTimeMillis();
+            snapshot.forEach((instanceName, counts) -> {
+                AccessReportMessage message = new AccessReportMessage();
+                message.setInstanceId(instanceName);
+                message.setTimestamp(timestamp);
+                message.setKeyAccessCounts(counts);
+                remotingClient.reportAccess(message);
+            });
 
         } catch (Exception e) {
             log.error("Failed to report access data", e);
         }
     }
 
-    private void sendRegistration() {
-        try {
-            AccessReportMessage message = new AccessReportMessage();
-            message.setInstanceId(instanceId);
-            message.setTimestamp(System.currentTimeMillis());
-            message.setKeyAccessCounts(new HashMap<>());
-            remotingClient.reportAccess(message);
-        } catch (Exception e) {
-            log.error("Failed to send registration message", e);
-        }
-    }
 
     private void queryTask() {
         try {
-            long currentVersion = hotKeySet.getVersion();
-            HotKeyViewMessage message = remotingClient.queryHotKeys(instanceId, currentVersion, queryTimeoutMillis);
+            Map<String, Long> versions = hotKeySet.snapshotVersions();
+            HotKeyViewMessage message = remotingClient.queryAllHotKeys(versions, queryTimeoutMillis);
             handleMessage(message);
         } catch (Exception e) {
             log.error("Failed to query hot keys", e);
@@ -133,9 +123,6 @@ public class HotKeyDetector {
         if (message == null) {
             return;
         }
-        if (instanceId != null && !instanceId.equals(message.getInstanceId())) {
-            return;
-        }
         handleMessage(message);
     }
 
@@ -143,7 +130,23 @@ public class HotKeyDetector {
         if (message == null) {
             return;
         }
-        boolean updated = hotKeySet.update(message.getHotKeys(), message.getVersion());
+        Map<String, HotKeyViewMessage.ViewEntry> views = message.getViews();
+        if (views != null && !views.isEmpty()) {
+            views.forEach((instanceId, entry) -> {
+                if (entry == null) {
+                    return;
+                }
+                boolean updated = hotKeySet.update(instanceId, entry.getHotKeys(), entry.getVersion());
+                if (updated && log.isDebugEnabled()) {
+                    log.debug("Updated hot keys to version {}, count: {}", entry.getVersion(), entry.getHotKeys().size());
+                }
+            });
+            return;
+        }
+        if (message.getInstanceId() == null) {
+            return;
+        }
+        boolean updated = hotKeySet.update(message.getInstanceId(), message.getHotKeys(), message.getVersion());
         if (updated && log.isDebugEnabled()) {
             log.debug("Updated hot keys to version {}, count: {}", message.getVersion(), message.getHotKeys().size());
         }

@@ -88,7 +88,9 @@ public class HotKeyAutoConfiguration {
     @ConditionalOnMissingBean
     public HotKeyRemotingClient hkcacheRemotingClient(Serializer serializer, NettyClient nettyClient) {
         ClientRequestSender sender = new ClientRequestSender(nettyClient);
-        return new HotKeyRemotingClient(serializer, sender);
+        HotKeyRemotingClient client = new HotKeyRemotingClient(serializer, sender);
+        client.registerPushChannel();
+        return client;
     }
 
     @Bean
@@ -176,4 +178,3 @@ public class HotKeyAutoConfiguration {
         return "hkcache." + (StringUtils.isEmpty(instanceName) ? "default" : instanceName) + ".cacheTemplate";
     }
 }
-

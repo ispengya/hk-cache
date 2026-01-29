@@ -25,4 +25,6 @@ public interface HotKeyResultStore {
      * @return 热 Key 结果，若不存在则返回 null
      */
     HotKeyResult get(String instanceId);
+
+    Iterable<HotKeyResult> listAll();
 }

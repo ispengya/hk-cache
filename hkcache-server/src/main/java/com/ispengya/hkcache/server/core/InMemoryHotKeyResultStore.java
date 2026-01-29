@@ -25,4 +25,9 @@ public final class InMemoryHotKeyResultStore implements HotKeyResultStore {
     public HotKeyResult get(String instanceId) {
         return store.get(instanceId);
     }
+
+    @Override
+    public Iterable<HotKeyResult> listAll() {
+        return store.values();
+    }
 }

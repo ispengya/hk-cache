@@ -12,6 +12,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * HotKeyQueryHandler 处理热 Key 查询请求。
@@ -47,33 +49,35 @@ public final class HotKeyQueryHandler implements RequestHandler {
             if (request == null) {
                 return;
             }
-
-            HotKeyResult result = resultStore.get(request.getInstanceId());
             HotKeyViewMessage responseMsg;
 
-            if (result == null) {
-                // 无结果，返回空集合
-                responseMsg = new HotKeyViewMessage(
-                        request.getInstanceId(),
-                        0L,
-                        Collections.emptySet()
-                );
-            } else if (result.getVersion() <= request.getLastVersion()) {
-                // 版本未变更，目前策略为返回当前结果（客户端可根据版本号判断是否更新）
-                // 优化点：若版本一致，可仅返回空集合 + 当前版本，减少带宽。
-                // 简化实现：返回全量。
-                responseMsg = new HotKeyViewMessage(
-                        result.getInstanceId(),
-                        result.getVersion(),
-                        result.getHotKeys()
-                );
+            Map<String, Long> lastVersions = request.getLastVersions();
+            if (lastVersions != null && !lastVersions.isEmpty()) {
+                Map<String, HotKeyViewMessage.ViewEntry> views = new HashMap<>();
+                for (HotKeyResult result : resultStore.listAll()) {
+                    HotKeyViewMessage.ViewEntry entry = new HotKeyViewMessage.ViewEntry(
+                            result.getVersion(),
+                            result.getHotKeys()
+                    );
+                    views.put(result.getInstanceId(), entry);
+                }
+                responseMsg = new HotKeyViewMessage();
+                responseMsg.setViews(views);
             } else {
-                // 有新版本
-                responseMsg = new HotKeyViewMessage(
-                        result.getInstanceId(),
-                        result.getVersion(),
-                        result.getHotKeys()
-                );
+                HotKeyResult result = resultStore.get(request.getInstanceId());
+                if (result == null) {
+                    responseMsg = new HotKeyViewMessage(
+                            request.getInstanceId(),
+                            0L,
+                            Collections.emptySet()
+                    );
+                } else {
+                    responseMsg = new HotKeyViewMessage(
+                            result.getInstanceId(),
+                            result.getVersion(),
+                            result.getHotKeys()
+                    );
+                }
             }
 
             byte[] payload = serializer.serialize(responseMsg);
