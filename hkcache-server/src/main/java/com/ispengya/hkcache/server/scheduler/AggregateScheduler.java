@@ -29,8 +29,7 @@ public final class AggregateScheduler {
     private final long periodMillis;
     private final long decayPeriodMillis;
     private final long hotKeyIdleMillis;
-    private final ServerChannelManager channelManager;
-    private final Serializer serializer;
+    private final HotKeyChangePublisher changePublisher;
 
     /**
      * 构造调度器。
@@ -61,10 +60,9 @@ public final class AggregateScheduler {
         this.resultStore = resultStore;
         this.instanceRegistry = instanceRegistry;
         this.periodMillis = periodMillis;
-        this.channelManager = channelManager;
-        this.serializer = serializer;
         this.decayPeriodMillis = decayPeriodMillis;
         this.hotKeyIdleMillis = hotKeyIdleMillis;
+        this.changePublisher = new HotKeyChangePublisher(channelManager, serializer);
     }
 
     /**
@@ -100,8 +98,7 @@ public final class AggregateScheduler {
                     aggregateService,
                     algorithm,
                     resultStore,
-                    channelManager,
-                    serializer
+                    changePublisher
             );
             workerPool.submit(task);
         }
@@ -113,8 +110,7 @@ public final class AggregateScheduler {
                     instanceId,
                     resultStore,
                     hotKeyIdleMillis,
-                    channelManager,
-                    serializer
+                    changePublisher
             );
             workerPool.submit(task);
         }
