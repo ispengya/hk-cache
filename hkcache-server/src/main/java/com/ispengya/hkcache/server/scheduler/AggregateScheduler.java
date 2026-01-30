@@ -27,6 +27,8 @@ public final class AggregateScheduler {
     private final HotKeyResultStore resultStore;
     private final InstanceRegistry instanceRegistry;
     private final long periodMillis;
+    private final long decayPeriodMillis;
+    private final long hotKeyIdleMillis;
     private final ServerChannelManager channelManager;
     private final Serializer serializer;
 
@@ -49,7 +51,9 @@ public final class AggregateScheduler {
                               InstanceRegistry instanceRegistry,
                               long periodMillis,
                               ServerChannelManager channelManager,
-                              Serializer serializer) {
+                              Serializer serializer,
+                              long decayPeriodMillis,
+                              long hotKeyIdleMillis) {
         this.scheduler = scheduler;
         this.workerPool = workerPool;
         this.aggregateService = aggregateService;
@@ -59,6 +63,8 @@ public final class AggregateScheduler {
         this.periodMillis = periodMillis;
         this.channelManager = channelManager;
         this.serializer = serializer;
+        this.decayPeriodMillis = decayPeriodMillis;
+        this.hotKeyIdleMillis = hotKeyIdleMillis;
     }
 
     /**
@@ -69,6 +75,12 @@ public final class AggregateScheduler {
                 this::scheduleComputeTasks,
                 periodMillis,
                 periodMillis,
+                TimeUnit.MILLISECONDS
+        );
+        scheduler.scheduleAtFixedRate(
+                this::scheduleDecayTasks,
+                decayPeriodMillis,
+                decayPeriodMillis,
                 TimeUnit.MILLISECONDS
         );
     }
@@ -88,6 +100,19 @@ public final class AggregateScheduler {
                     aggregateService,
                     algorithm,
                     resultStore,
+                    channelManager,
+                    serializer
+            );
+            workerPool.submit(task);
+        }
+    }
+
+    private void scheduleDecayTasks() {
+        for (String instanceId : instanceRegistry.listInstanceIds()) {
+            HotKeyDecayTask task = new HotKeyDecayTask(
+                    instanceId,
+                    resultStore,
+                    hotKeyIdleMillis,
                     channelManager,
                     serializer
             );

@@ -68,7 +68,9 @@ public class HotKeyServerApplication {
                 aggregator,
                 1000L,
                 channelManager,
-                serializer
+                serializer,
+                1000L,
+                60000L
         );
 
         // 6. Bootstrap

@@ -49,36 +49,31 @@ public final class HotKeyQueryHandler implements RequestHandler {
             if (request == null) {
                 return;
             }
-            HotKeyViewMessage responseMsg;
 
             Map<String, Long> lastVersions = request.getLastVersions();
-            if (lastVersions != null && !lastVersions.isEmpty()) {
-                Map<String, HotKeyViewMessage.ViewEntry> views = new HashMap<>();
-                for (HotKeyResult result : resultStore.listAll()) {
-                    HotKeyViewMessage.ViewEntry entry = new HotKeyViewMessage.ViewEntry(
-                            result.getVersion(),
-                            result.getHotKeys()
-                    );
-                    views.put(result.getInstanceId(), entry);
+
+            HotKeyViewMessage responseMsg;
+            Map<String, HotKeyViewMessage.ViewEntry> views = new HashMap<>();
+            for (HotKeyResult result : resultStore.listAll()) {
+                long clientVersion = 0L;
+                if (lastVersions != null) {
+                    Long v = lastVersions.get(result.getInstanceId());
+                    if (v != null) {
+                        clientVersion = v;
+                    }
                 }
-                responseMsg = new HotKeyViewMessage();
-                responseMsg.setViews(views);
-            } else {
-                HotKeyResult result = resultStore.get(request.getInstanceId());
-                if (result == null) {
-                    responseMsg = new HotKeyViewMessage(
-                            request.getInstanceId(),
-                            0L,
-                            Collections.emptySet()
-                    );
-                } else {
-                    responseMsg = new HotKeyViewMessage(
-                            result.getInstanceId(),
-                            result.getVersion(),
-                            result.getHotKeys()
-                    );
+                if (result.getVersion() <= clientVersion) {
+                    continue;
                 }
+
+                HotKeyViewMessage.ViewEntry entry = new HotKeyViewMessage.ViewEntry(
+                        result.getVersion(),
+                        result.getHotKeys()
+                );
+                views.put(result.getInstanceId(), entry);
             }
+            responseMsg = new HotKeyViewMessage();
+            responseMsg.setViews(views);
 
             byte[] payload = serializer.serialize(responseMsg);
             Command response = new Command(CommandType.HOT_KEY_QUERY, command.getRequestId(), payload);

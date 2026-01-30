@@ -136,19 +136,17 @@ public class HotKeyDetector {
                 if (entry == null) {
                     return;
                 }
-                boolean updated = hotKeySet.update(instanceId, entry.getHotKeys(), entry.getVersion());
+                boolean updated = false;
+                if (entry.getAddedKeys() != null || entry.getRemovedKeys() != null) {
+                    updated = hotKeySet.applyDiff(instanceId, entry.getAddedKeys(), entry.getRemovedKeys(), entry.getVersion());
+                } else {
+                    updated = hotKeySet.update(instanceId, entry.getHotKeys(), entry.getVersion());
+                }
                 if (updated && log.isDebugEnabled()) {
-                    log.debug("Updated hot keys to version {}, count: {}", entry.getVersion(), entry.getHotKeys().size());
+                    int count = entry.getHotKeys() != null ? entry.getHotKeys().size() : 0;
+                    log.debug("Updated hot keys to version {}, count: {}", entry.getVersion(), count);
                 }
             });
-            return;
-        }
-        if (message.getInstanceId() == null) {
-            return;
-        }
-        boolean updated = hotKeySet.update(message.getInstanceId(), message.getHotKeys(), message.getVersion());
-        if (updated && log.isDebugEnabled()) {
-            log.debug("Updated hot keys to version {}, count: {}", message.getVersion(), message.getHotKeys().size());
         }
     }
 }

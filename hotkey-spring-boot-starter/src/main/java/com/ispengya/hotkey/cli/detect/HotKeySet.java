@@ -39,6 +39,40 @@ public class HotKeySet {
         return true;
     }
 
+    public synchronized boolean applyDiff(String instanceId,
+                                          Iterable<String> addedKeys,
+                                          Iterable<String> removedKeys,
+                                          long newVersion) {
+        if (instanceId == null) {
+            return false;
+        }
+        InstanceView view = views.computeIfAbsent(instanceId, k -> new InstanceView());
+        long current = view.version.get();
+        if (newVersion <= current) {
+            return false;
+        }
+
+        Set<String> merged = new HashSet<>(view.hotKeys);
+        if (addedKeys != null) {
+            for (String key : addedKeys) {
+                if (key != null) {
+                    merged.add(key);
+                }
+            }
+        }
+        if (removedKeys != null) {
+            for (String key : removedKeys) {
+                if (key != null) {
+                    merged.remove(key);
+                }
+            }
+        }
+
+        view.hotKeys = Collections.unmodifiableSet(merged);
+        view.version.set(newVersion);
+        return true;
+    }
+
     public boolean contains(String instanceId, String key) {
         if (instanceId == null || key == null) {
             return false;

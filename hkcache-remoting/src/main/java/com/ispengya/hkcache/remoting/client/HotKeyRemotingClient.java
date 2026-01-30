@@ -68,23 +68,6 @@ public final class HotKeyRemotingClient {
         sender.sendOneWayOnPushChannel(command);
     }
 
-    /**
-     * 查询热 Key 视图 (Sync)
-     */
-    public HotKeyViewMessage queryHotKeys(String instanceId, long lastVersion, long timeoutMillis) {
-        HotKeyQueryRequest request = new HotKeyQueryRequest(instanceId, lastVersion);
-        byte[] bytes = serializer.serialize(request);
-        Command command = new Command(CommandType.HOT_KEY_QUERY, bytes);
-        try {
-            CompletableFuture<Command> future = sender.sendSync(command, timeoutMillis);
-            Command responseCommand = future.get(timeoutMillis, TimeUnit.MILLISECONDS);
-            return serializer.deserialize(responseCommand.getPayload(), HotKeyViewMessage.class);
-        } catch (Exception e) {
-            // 发生异常（超时或网络错误）时返回空结果或 fallback
-            // 这里返回一个空视图，避免上层 NPE，业务层可以根据 version 判断是否更新
-            return new HotKeyViewMessage(instanceId, lastVersion, Collections.emptySet());
-        }
-    }
 
     public HotKeyViewMessage queryAllHotKeys(Map<String, Long> lastVersions, long timeoutMillis) {
         HotKeyQueryRequest request = new HotKeyQueryRequest(lastVersions);

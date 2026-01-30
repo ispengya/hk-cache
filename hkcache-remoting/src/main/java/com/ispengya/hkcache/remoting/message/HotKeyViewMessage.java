@@ -15,6 +15,8 @@ public class HotKeyViewMessage implements Serializable {
     public static final class ViewEntry implements Serializable {
         private long version;
         private Set<String> hotKeys;
+        private Set<String> addedKeys;
+        private Set<String> removedKeys;
 
         public ViewEntry() {
         }
@@ -38,6 +40,22 @@ public class HotKeyViewMessage implements Serializable {
 
         public void setHotKeys(Set<String> hotKeys) {
             this.hotKeys = hotKeys;
+        }
+
+        public Set<String> getAddedKeys() {
+            return addedKeys;
+        }
+
+        public void setAddedKeys(Set<String> addedKeys) {
+            this.addedKeys = addedKeys;
+        }
+
+        public Set<String> getRemovedKeys() {
+            return removedKeys;
+        }
+
+        public void setRemovedKeys(Set<String> removedKeys) {
+            this.removedKeys = removedKeys;
         }
     }
 
@@ -104,19 +122,6 @@ public class HotKeyViewMessage implements Serializable {
         this.version = version;
     }
 
-    /**
-     * 获取热 key 集合。
-     */
-    public Set<String> getHotKeys() {
-        return hotKeys;
-    }
-
-    /**
-     * 设置热 key 集合。
-     */
-    public void setHotKeys(Set<String> hotKeys) {
-        this.hotKeys = hotKeys;
-    }
 
     public Map<String, ViewEntry> getViews() {
         return views;
