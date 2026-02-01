@@ -4,6 +4,7 @@ import com.ispengya.hkcache.server.model.AccessReport;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * SlidingWindowInstanceAggStore 基于简易滑动窗口实现的聚合存储。
@@ -47,7 +48,7 @@ public final class SlidingWindowInstanceAggStore implements InstanceAggStore {
 
     @Override
     public void addReport(AccessReport report) {
-        long now = report.getTimestampMillis();
+        long now = System.currentTimeMillis();
         WindowSlot slot = resolveSlot(now);
         
         // 简单的同步逻辑保证槽内线程安全
@@ -83,14 +84,25 @@ public final class SlidingWindowInstanceAggStore implements InstanceAggStore {
 
     @Override
     public Iterable<AggregatedKeyStat> snapshot() {
+        // merged 存放当前时间窗口内所有槽合并后的统计结果
         Map<String, AggregatedKeyStat> merged = new HashMap<>();
+        // 对当前时间对齐到窗口起点，例如 10:00:01.234 对齐为 10:00:01.000
+        long nowMillis = System.currentTimeMillis();
+        long currentWindowStart = alignToWindow(nowMillis);
+        // 整个滑动窗口覆盖的最早时间起点
+        long minWindowStart = currentWindowStart - (windowSlotCount - 1L) * windowSizeMillis;
         for (WindowSlot slot : slots) {
-            // 对槽内容进行快照，避免迭代期间发生并发修改
+            long slotStart = slot.getWindowStartMillis();
+            // 只统计当前滑动窗口范围内的槽，超出范围的视为过期数据
+            if (slotStart < minWindowStart || slotStart > currentWindowStart) {
+                continue;
+            }
+            // 对槽内容进行快照，避免在合并过程中被并发修改
             Map<String, AggregatedKeyStat> slotStats;
             synchronized (slot.getStats()) {
                 slotStats = new HashMap<>(slot.getStats());
             }
-            
+
             for (AggregatedKeyStat stat : slotStats.values()) {
                 AggregatedKeyStat existing = merged.get(stat.getKey());
                 if (existing == null) {
@@ -111,10 +123,37 @@ public final class SlidingWindowInstanceAggStore implements InstanceAggStore {
     }
 
     private WindowSlot resolveSlot(long nowMillis) {
-        // 简化逻辑：仅返回第一个槽，或实现实际的轮转逻辑。
-        // 设计文档伪代码为：return slots.get(0);
-        // 若需真实滑动窗口，需根据时间计算索引。
-        // 目前暂按文档实现，后续可扩展为 Ring Buffer。
-        return slots.get(0); 
+        // 将时间戳对齐到窗口起点，用于确定所属的时间槽
+        long windowStart = alignToWindow(nowMillis);
+        // 记录当前最老槽的起始时间及其索引，用于需要复用槽时选择被覆盖的目标
+        long oldestStart = Long.MAX_VALUE;
+        int oldestIndex = -1;
+        for (int i = 0; i < windowSlotCount; i++) {
+            WindowSlot slot = slots.get(i);
+            long slotStart = slot.getWindowStartMillis();
+            // 如果找到了与当前时间对应的槽，直接复用
+            if (slotStart == windowStart) {
+                return slot;
+            }
+            // 记录起始时间最早的槽，用于后续滑动窗口覆盖
+            if (slotStart < oldestStart) {
+                oldestStart = slotStart;
+                oldestIndex = i;
+            }
+        }
+        // 如果没有找到匹配的槽，则复用最老的那个槽，将其重置为当前窗口
+        int index = oldestIndex >= 0 ? oldestIndex : 0;
+        WindowSlot newSlot = new WindowSlot(windowStart, new ConcurrentHashMap<>());
+        slots.set(index, newSlot);
+        return newSlot;
+    }
+
+    private long alignToWindow(long timestampMillis) {
+        // 容错处理：窗口大小非法时直接返回原始时间戳
+        if (windowSizeMillis <= 0L) {
+            return timestampMillis;
+        }
+        // 将时间戳向下取整到窗口边界，例如 1234ms 对齐到 1000ms
+        return timestampMillis - (timestampMillis % windowSizeMillis);
     }
 }
