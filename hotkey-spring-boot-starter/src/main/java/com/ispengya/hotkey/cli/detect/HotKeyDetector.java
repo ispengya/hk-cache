@@ -29,11 +29,7 @@ public class HotKeyDetector {
     private final HotKeyTransport transport;
     private final HotKeyViewRefresher viewRefresher;
     private final ConcurrentHashMap<String, ConcurrentHashMap<String, LongAdder>> accessBuffer = new ConcurrentHashMap<>();
-
-    // 配置参数（后续可抽取到 Properties）
-    private final long reportPeriodMillis = 5000L;
-    private final long queryPeriodMillis = 30000L;
-    private final long queryTimeoutMillis = 3000L;
+    private final long reportPeriodMillis;
 
     /**
      * 构造 HotKeyDetector。
@@ -42,15 +38,24 @@ public class HotKeyDetector {
      * @param hotKeySet      本地热 Key 视图
      */
     public HotKeyDetector(HotKeyRemotingClient remotingClient,
-                          HotKeySet hotKeySet) {
+                          HotKeySet hotKeySet,
+                          long reportPeriodMillis,
+                          long queryPeriodMillis,
+                          long queryTimeoutMillis) {
         this.scheduler = Executors.newScheduledThreadPool(1);
         this.transport = new HotKeyTransport(remotingClient);
+        this.reportPeriodMillis = reportPeriodMillis;
         this.viewRefresher = new HotKeyViewRefresher(
                 transport,
                 hotKeySet,
                 queryPeriodMillis,
                 queryTimeoutMillis
         );
+    }
+
+    public HotKeyDetector(HotKeyRemotingClient remotingClient,
+                          HotKeySet hotKeySet) {
+        this(remotingClient, hotKeySet, 5000L, 30000L, 3000L);
     }
 
     /**

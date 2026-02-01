@@ -31,16 +31,37 @@ public final class NettyClientConfig {
     private final int maxFrameLength;
 
     /**
+     * push 通道连接池大小。
+     */
+    private final int pushPoolSize;
+
+    /**
+     * report 通道连接池大小。
+     */
+    private final int reportPoolSize;
+
+    /**
      * 构造 Netty 客户端配置。
      */
     public NettyClientConfig(List<InetSocketAddress> serverAddresses,
                              int connectTimeoutMillis,
                              int workerThreads,
                              int maxFrameLength) {
+        this(serverAddresses, connectTimeoutMillis, workerThreads, maxFrameLength, 1, 2);
+    }
+
+    public NettyClientConfig(List<InetSocketAddress> serverAddresses,
+                             int connectTimeoutMillis,
+                             int workerThreads,
+                             int maxFrameLength,
+                             int pushPoolSize,
+                             int reportPoolSize) {
         this.serverAddresses = serverAddresses;
         this.connectTimeoutMillis = connectTimeoutMillis;
         this.workerThreads = workerThreads;
         this.maxFrameLength = maxFrameLength;
+        this.pushPoolSize = pushPoolSize;
+        this.reportPoolSize = reportPoolSize;
     }
 
     public List<InetSocketAddress> getServerAddresses() {
@@ -57,5 +78,13 @@ public final class NettyClientConfig {
 
     public int getMaxFrameLength() {
         return maxFrameLength;
+    }
+
+    public int getPushPoolSize() {
+        return pushPoolSize;
+    }
+
+    public int getReportPoolSize() {
+        return reportPoolSize;
     }
 }

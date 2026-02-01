@@ -72,13 +72,21 @@ public class HotKeyAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public NettyClient hkcacheNettyClient(HotKeyProperties properties) {
-        // 假设 properties 中有 server 配置，暂时使用默认值
-        List<InetSocketAddress> serverAddresses = Collections.singletonList(
-                new InetSocketAddress("127.0.0.1", 8888)
+        HotKeyProperties.ClientConfig clientConfig = properties.getClient();
+        List<InetSocketAddress> serverAddresses = buildServerAddresses(clientConfig);
+        int connectTimeoutMillis = clientConfig.getConnectTimeoutMillis();
+        int workerThreads = clientConfig.getWorkerThreads();
+        int maxFrameBytes = clientConfig.getMaxFrameBytes();
+        int pushPoolSize = clientConfig.getPushPoolSize();
+        int reportPoolSize = clientConfig.getReportPoolSize();
+        NettyClientConfig config = new NettyClientConfig(
+                serverAddresses,
+                connectTimeoutMillis,
+                workerThreads,
+                maxFrameBytes,
+                pushPoolSize,
+                reportPoolSize
         );
-        // 如果 properties 有配置则使用 properties
-        // 这里简化处理，实际应解析 properties.getServerAddresses()
-        NettyClientConfig config = new NettyClientConfig(serverAddresses, 3000, 4, 1024 * 1024);
         NettyClient client = new NettyClient(config);
         client.start();
         return client;
@@ -104,9 +112,50 @@ public class HotKeyAutoConfiguration {
     public HotKeyDetector hkcacheHotKeyDetector(HotKeyProperties properties,
                                                 HotKeyRemotingClient remotingClient,
                                                 HotKeySet hotKeySet) {
-        HotKeyDetector detector = new HotKeyDetector(remotingClient, hotKeySet);
+        HotKeyProperties.DetectConfig detectConfig = properties.getDetect();
+        long reportPeriodMillis = detectConfig.getReportPeriodMillis();
+        long queryPeriodMillis = detectConfig.getQueryPeriodMillis();
+        long queryTimeoutMillis = detectConfig.getQueryTimeoutMillis();
+        HotKeyDetector detector = new HotKeyDetector(
+                remotingClient,
+                hotKeySet,
+                reportPeriodMillis,
+                queryPeriodMillis,
+                queryTimeoutMillis
+        );
         detector.start();
         return detector;
+    }
+
+    private List<InetSocketAddress> buildServerAddresses(HotKeyProperties.ClientConfig clientConfig) {
+        List<String> addresses = clientConfig.getServerAddresses();
+        if (CollUtil.isEmpty(addresses)) {
+            return Collections.singletonList(new InetSocketAddress("127.0.0.1", 8888));
+        }
+        List<InetSocketAddress> result = new ArrayList<>();
+        for (String addr : addresses) {
+            if (addr == null || addr.isEmpty()) {
+                continue;
+            }
+            String[] parts = addr.split(":");
+            if (parts.length != 2) {
+                continue;
+            }
+            String host = parts[0].trim();
+            String portPart = parts[1].trim();
+            if (host.isEmpty()) {
+                continue;
+            }
+            try {
+                int port = Integer.parseInt(portPart);
+                result.add(new InetSocketAddress(host, port));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        if (result.isEmpty()) {
+            return Collections.singletonList(new InetSocketAddress("127.0.0.1", 8888));
+        }
+        return result;
     }
 
     /**

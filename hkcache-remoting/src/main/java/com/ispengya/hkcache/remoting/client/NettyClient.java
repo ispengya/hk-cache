@@ -38,17 +38,13 @@ public final class NettyClient {
      */
     private Bootstrap bootstrap;
 
-    private static final int DEFAULT_PUSH_POOL_SIZE = 1;
+    private final int pushPoolSize;
 
-    private static final int DEFAULT_REPORT_POOL_SIZE = 2;
+    private final int reportPoolSize;
 
-    private final int pushPoolSize = DEFAULT_PUSH_POOL_SIZE;
+    private final List<Channel> pushChannelPool;
 
-    private final int reportPoolSize = DEFAULT_REPORT_POOL_SIZE;
-
-    private final List<Channel> pushChannelPool = new ArrayList<>(DEFAULT_PUSH_POOL_SIZE);
-
-    private final List<Channel> reportChannelPool = new ArrayList<>(DEFAULT_REPORT_POOL_SIZE);
+    private final List<Channel> reportChannelPool;
 
     private final AtomicInteger nextPushIndex = new AtomicInteger(0);
 
@@ -61,6 +57,10 @@ public final class NettyClient {
 
     public NettyClient(NettyClientConfig config) {
         this.config = config;
+        this.pushPoolSize = Math.max(1, config.getPushPoolSize());
+        this.reportPoolSize = Math.max(1, config.getReportPoolSize());
+        this.pushChannelPool = new ArrayList<>(pushPoolSize);
+        this.reportChannelPool = new ArrayList<>(reportPoolSize);
     }
 
     /**

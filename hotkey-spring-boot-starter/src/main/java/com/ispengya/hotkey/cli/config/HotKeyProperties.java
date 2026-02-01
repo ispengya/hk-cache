@@ -20,6 +20,10 @@ public class HotKeyProperties {
 
     private List<InstanceConfig> instances = new ArrayList<>();
 
+    private DetectConfig detect = new DetectConfig();
+
+    private ClientConfig client = new ClientConfig();
+
     public boolean isEnabled() {
         return enabled;
     }
@@ -34,5 +38,117 @@ public class HotKeyProperties {
 
     public void setInstances(List<InstanceConfig> instances) {
         this.instances = instances;
+    }
+
+    public DetectConfig getDetect() {
+        return detect;
+    }
+
+    public void setDetect(DetectConfig detect) {
+        this.detect = detect;
+    }
+
+    public ClientConfig getClient() {
+        return client;
+    }
+
+    public void setClient(ClientConfig client) {
+        this.client = client;
+    }
+
+    public static class DetectConfig {
+
+        private Long reportPeriodMillis = 5000L;
+
+        private Long queryPeriodMillis = 30000L;
+
+        private Long queryTimeoutMillis = 3000L;
+
+        public Long getReportPeriodMillis() {
+            return reportPeriodMillis;
+        }
+
+        public void setReportPeriodMillis(Long reportPeriodMillis) {
+            this.reportPeriodMillis = reportPeriodMillis;
+        }
+
+        public Long getQueryPeriodMillis() {
+            return queryPeriodMillis;
+        }
+
+        public void setQueryPeriodMillis(Long queryPeriodMillis) {
+            this.queryPeriodMillis = queryPeriodMillis;
+        }
+
+        public Long getQueryTimeoutMillis() {
+            return queryTimeoutMillis;
+        }
+
+        public void setQueryTimeoutMillis(Long queryTimeoutMillis) {
+            this.queryTimeoutMillis = queryTimeoutMillis;
+        }
+    }
+
+    public static class ClientConfig {
+
+        private List<String> serverAddresses;
+
+        private Integer connectTimeoutMillis = 3000;
+
+        private Integer workerThreads = 4;
+
+        private Integer maxFrameBytes = 1024 * 1024;
+
+        private Integer pushPoolSize = 1;
+
+        private Integer reportPoolSize = 2;
+
+        public List<String> getServerAddresses() {
+            return serverAddresses;
+        }
+
+        public void setServerAddresses(List<String> serverAddresses) {
+            this.serverAddresses = serverAddresses;
+        }
+
+        public Integer getConnectTimeoutMillis() {
+            return connectTimeoutMillis;
+        }
+
+        public void setConnectTimeoutMillis(Integer connectTimeoutMillis) {
+            this.connectTimeoutMillis = connectTimeoutMillis;
+        }
+
+        public Integer getWorkerThreads() {
+            return workerThreads;
+        }
+
+        public void setWorkerThreads(Integer workerThreads) {
+            this.workerThreads = workerThreads;
+        }
+
+        public Integer getMaxFrameBytes() {
+            return maxFrameBytes;
+        }
+
+        public void setMaxFrameBytes(Integer maxFrameBytes) {
+            this.maxFrameBytes = maxFrameBytes;
+        }
+
+        public Integer getPushPoolSize() {
+            return pushPoolSize;
+        }
+
+        public void setPushPoolSize(Integer pushPoolSize) {
+            this.pushPoolSize = pushPoolSize;
+        }
+
+        public Integer getReportPoolSize() {
+            return reportPoolSize;
+        }
+
+        public void setReportPoolSize(Integer reportPoolSize) {
+            this.reportPoolSize = reportPoolSize;
+        }
     }
 }
